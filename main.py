@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import networkx as nx
+import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple
 import itertools
 import math
@@ -18,6 +19,7 @@ class SistemaDeTransporteIA:
         self.reglas = datos.get('reglas', [])
 
         self.grafo = self._construir_grafo_networkx()
+        self.X_train = self._preparar_datos_entrenamiento()
         self.clusterizador = self._crear_modelo_clustering()
 
         self.q_learning = QLearningRouter(self.grafo)
@@ -34,10 +36,10 @@ class SistemaDeTransporteIA:
             peso = self._calcular_peso_conexion(conexion)
 
             G.add_edge(origen, destino,
-                      tiempo=conexion.get('tiempo', 10),
-                      distancia=conexion.get('distancia', 1),
-                      linea=conexion.get('linea', 'desconocida'),
-                      peso=peso)
+                        tiempo=conexion.get('tiempo', 10),
+                        distancia=conexion.get('distancia', 1),
+                        linea=conexion.get('linea', 'desconocida'),
+                        peso=peso)
 
         return G
 
@@ -59,15 +61,25 @@ class SistemaDeTransporteIA:
         return tiempo / distancia
 
     def _crear_modelo_clustering(self) -> KMeans:
-        X_train = self._preparar_datos_entrenamiento()
         scaler = MinMaxScaler()
-        X_scaled = scaler.fit_transform(X_train)
+        X_scaled = scaler.fit_transform(self.X_train)
 
         kmeans = KMeans(n_clusters=3, random_state=42)
         kmeans.fit(X_scaled)
 
         self.cluster_labels = kmeans.labels_
+        self._graficar_clusters(X_scaled, self.cluster_labels)
+
         return kmeans
+
+    def _graficar_clusters(self, X_scaled: np.ndarray, labels: np.ndarray):
+        plt.figure(figsize=(8, 6))
+        plt.scatter(X_scaled[:, 0], X_scaled[:, 1], c=labels, cmap='viridis', s=50)
+        plt.title('Clusters de Conexiones de Transporte')
+        plt.xlabel('Distancia Normalizada')
+        plt.ylabel('Tiempo Normalizado')
+        plt.grid(True)
+        plt.show()
 
     def _preparar_datos_entrenamiento(self) -> np.ndarray:
         caracteristicas = []
@@ -103,7 +115,6 @@ class SistemaDeTransporteIA:
 
             grupo = self.clusterizador.predict(caracteristicas_scaled)[0]
 
-            # Ajustar tiempo según el grupo
             factor_grupo = {0: 1.0, 1: 1.2, 2: 0.8}
             tiempo_estimado = max(5, tiempo_base * factor_grupo.get(grupo, 1))
             tiempos_estimados.append(tiempo_estimado)
